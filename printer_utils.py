@@ -118,17 +118,17 @@ def get_printer_status(printer):
     printer['label_size'] = "unknown"
     printer['label_width'] = 0
     printer['label_height'] = 0
-    logger.info(f"Checking if '{printer['model']}' is in FALLBACK_MODELS: {FALLBACK_MODELS}")
+    logger.debug(f"Checking if '{printer['model']}' is in FALLBACK_MODELS: {FALLBACK_MODELS}")
     if str(printer['model']) in FALLBACK_MODELS:
         printer['label_type'] = FALLBACK_LABEL_TYPE
         printer['label_width'] = get_label_width(FALLBACK_LABEL_TYPE)
         printer['label_height'] = None
         printer['status'] = "Waiting to receive"
-        logger.info(f"Using fallback label type {printer['label_type']} for model {printer['model']}")
+        logger.debug(f"Using fallback label type {printer['label_type']} for model {printer['model']}")
     else:
         try:
             cmd = f"brother_ql -b pyusb --model {printer['model']} -p {printer['identifier']} status"
-            logger.info(f"Running status command: {cmd}")
+            logger.debug(f"Running status command: {cmd}")
             result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=5)
             
             # Log the raw output for debugging
@@ -191,9 +191,9 @@ def print_image(image, printer_info, rotate=0, dither=False):
     with tempfile.NamedTemporaryFile(suffix=".png", delete=False, dir=temp_dir) as temp_file:
         temp_file_path = temp_file.name
         image.save(temp_file_path, "PNG")
-        logger.info(f"Image saved to: {temp_file_path}")
+        logger.info(f"{temp_file_path} added to print queue for printer {printer_info['name']}")
 
-    logger.info(f"Using label type: {printer_info['label_type']}")
+    logger.debug(f"Using label type: {printer_info['label_type']}")
 
     job_id = print_queue.add_job(
         image,
@@ -221,30 +221,24 @@ def print_image(image, printer_info, rotate=0, dither=False):
             file_path = os.path.join("labels", filename)
             image.save(file_path, "PNG")
             status_container.success(f"Sticker saved as {filename}")
-
-
+        
         return True
     else:
         status_container.error(f"Print job failed: {status.error}")
         return False
 
 
-def process_print_job(image, printer_info, temp_file_path, rotate=0, dither=False, label_type="102", debug=False):
+def process_print_job(image, printer_info, temp_file_path, rotate=0, dither=False, label_type="102"):
     """
     Process a single print job.
     Returns (success, error_message)
     """
-    # Get debug flag from secrets if not explicitly passed
-    if not debug and 'debug' in st.secrets:
-        debug = st.secrets['debug']
 
     try:
         # Prepare the image for printing
         qlr = BrotherQLRaster(printer_info["model"])
         
-        # Debug log before conversion
-        if debug:
-            logger.debug(f"Starting print job with label_type: {label_type}")
+        logger.debug(f"Printing {temp_file_path} on label type {label_type} on printer {printer_info['name']}")
         
         instructions = convert(
             qlr=qlr,
@@ -260,17 +254,16 @@ def process_print_job(image, printer_info, temp_file_path, rotate=0, dither=Fals
             cut=True,
         )
 
-        # Debug logging
-        if debug:
-            logger.debug(f"""
-            Print parameters:
-            - Label type: {label_type}
-            - Rotate: {rotate}
-            - Dither: {dither}
-            - Model: {printer_info['model']}
-            - Backend: {printer_info['backend']}
-            - Identifier: {printer_info['identifier']}
-            """)
+
+        logger.debug(f"""
+        Print parameters:
+        - Label type: {label_type}
+        - Rotate: {rotate}
+        - Dither: {dither}
+        - Model: {printer_info['model']}
+        - Backend: {printer_info['backend']}
+        - Identifier: {printer_info['identifier']}
+        """)
 
         # Try to print using Python API
         success = send(
@@ -287,18 +280,15 @@ def process_print_job(image, printer_info, temp_file_path, rotate=0, dither=Fals
     except usb.core.USBError as e:
         # Treat timeout errors as successful since they often occur after print completion
         if e.errno == 110:  # Operation timed out
-            if debug:
-                logger.debug("USB timeout occurred - this is normal and the print likely completed")
+            logger.error("USB timeout occurred - this is normal and the print likely completed")
             return True, "Print completed (timeout is normal)"
         error_msg = f"USBError encountered: {e}"
-        if debug:
-            logger.debug(error_msg)
+        logger.error(error_msg)
         return False, error_msg
 
     except Exception as e:
         error_msg = f"Unexpected error during printing: {str(e)}"
-        if debug:
-            logger.debug(error_msg)
+        logger.error(error_msg)
         return False, error_msg
 
     finally:
