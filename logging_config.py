@@ -2,6 +2,7 @@
 
 import logging
 import logging.handlers
+
 from pathlib import Path
 
 from config_manager import ENABLE_FILE_LOGGING, FILE_LOG_LEVEL, ENABLE_STDOUT, STDOUT_LOG_LEVEL
@@ -21,6 +22,7 @@ class ColoredFormatter(logging.Formatter):
     }
     RESET = '\033[0m'            # Reset to default
     BOLD = '\033[1m'             # Bold
+    BLUE = '\033[34m'           # Blue
     
     def format(self, record):
         # Add color to the level name
@@ -47,10 +49,8 @@ detailed_formatter = logging.Formatter(
 )
 
 colored_formatter = ColoredFormatter(
-    "%(levelname)s - %(message)s"
+    "%(levelname)-19s: \033[35m%(filename)-20s\033[0m.\033[95m%(funcName)-25s\033[0m>>> %(message)s"
 )
-
-
 
 # Console handler (if enabled in config)
 if ENABLE_STDOUT:

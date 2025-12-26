@@ -9,7 +9,6 @@ privacy_mode = true
 [ui]
 history_limit = 15
 items_per_page = 5
-queue_view = true
 
 [txt2img]
 # URL for Stable Diffusion API endpoint
@@ -19,7 +18,7 @@ url = "http://localhost:7860"
 file = false
 file_level = "WARNING"
 stdout = true
-stdout_level = "INFO"
+stdout_level = "DEBUG"
 
 [tabs]
 # Enable or disable tabs by setting them to true or false
